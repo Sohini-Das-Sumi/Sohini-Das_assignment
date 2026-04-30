@@ -129,26 +129,19 @@ class TrinethraAssess:
     
     # Assessment dimension keywords
     DIMENSION_KEYWORDS = {
-'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
+        'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
         'Building Systems': ['system', 'tracker', 'sheet', 'template', 'process', 'automate', 'structure', ' SOP', 'document'],
         'KPI Impact': ['faster', 'saved', 'reduced', 'increased', 'improved', 'dropped', 'better', 'numbers', 'metrics'],
         'Change Management': ['resistance', 'adopt', 'workers', 'floor team', 'introduce', 'new process', 'compliance', 'listen to']
     }
-
+    
     # Supervisor bias indicators
     BIAS_INDICATORS = {
-        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves', 'my right hand', "don't know how we managed"],
+        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves'],
         'presence': ['always on', 'on the floor', 'physically', 'present', 'never leaves'],
         'halo': ['love', 'glowing', 'amazing', 'fantastic', 'couldn\'t manage without'],
         'recency': ['last week', 'recently', 'lately', 'these days', 'past few']
     }
-    
-    # Task absorption phrases - indicate personal dependency, NOT systems building
-    TASK_ABSORPTION_PHRASES = [
-        'runs my', 'takes my calls', 'handles all my', 'coordinates with',
-        'manages my', 'does my', 'in my office', 'personal',
-        'takes so much off', 'takes over', 'does another', 'doing raghav\'s'
-    ]
     
     # Rubric band definitions
     RUBRIC_BANDS = {
@@ -167,73 +160,34 @@ class TrinethraAssess:
         Returns:
             dict: Structured assessment with score, evidence, KPIs, gaps, questions
         """
-        errors = []
-        
         if not transcript or not isinstance(transcript, str):
-            return {'error': 'Transcript is required', 'errors': ['Transcript is required']}
+            return {'error': 'Transcript is required'}
         
         text_lower = transcript.lower()
         
-        # Extract evidence with error handling
-        try:
-            evidence = self._extract_evidence(transcript)
-        except Exception as e:
-            errors.append(f"Evidence extraction error: {str(e)}")
-            evidence = []
+        # Extract evidence
+        evidence = self._extract_evidence(transcript)
         
-        # Determine layer presence with error handling
-        try:
-            layers = self._detect_layers(text_lower)
-        except Exception as e:
-            errors.append(f"Layer detection error: {str(e)}")
-            layers = {'execution': True, 'systems_building': False, 'layer2_strength': 0}
+        # Determine layer presence
+        layers = self._detect_layers(text_lower)
         
-        # Map KPIs with error handling
-        try:
-            kpis = self._map_kpis(text_lower)
-        except Exception as e:
-            errors.append(f"KPI mapping error: {str(e)}")
-            kpis = []
+        # Map KPIs
+        kpis = self._map_kpis(text_lower)
         
-        # Detect assessment dimensions with error handling
-        try:
-            dimensions = self._detect_dimensions(text_lower)
-        except Exception as e:
-            errors.append(f"Dimension detection error: {str(e)}")
-            dimensions = {'Driving Execution': True, 'Building Systems': False, 'KPI Impact': False, 'Change Management': False}
+        # Detect assessment dimensions
+        dimensions = self._detect_dimensions(text_lower)
         
-        # Calculate score with error handling
-        try:
-            score = self._calculate_score(text_lower, evidence, layers, dimensions)
-        except Exception as e:
-            errors.append(f"Score calculation error: {str(e)}")
-            score = {
-                'value': 5,
-                'label': 'Consistent Performer',
-                'band': 'Productivity',
-                'justification': 'Assessment encountered errors. Default score applied.'
-            }
+        # Calculate score
+        score = self._calculate_score(text_lower, evidence, layers, dimensions)
         
-        # Identify gaps with error handling
-        try:
-            gaps = self._identify_gaps(dimensions, layers, evidence)
-        except Exception as e:
-            errors.append(f"Gap identification error: {str(e)}")
-            gaps = []
+        # Identify gaps
+        gaps = self._identify_gaps(dimensions, layers, evidence)
         
-        # Generate follow-up questions with error handling
-        try:
-            questions = self._generate_questions(gaps, dimensions)
-        except Exception as e:
-            errors.append(f"Question generation error: {str(e)}")
-            questions = ['Has the Fellow ever come to you with a problem you had not noticed?']
+        # Generate follow-up questions
+        questions = self._generate_questions(gaps, dimensions)
         
-        # Detect biases with error handling
-        try:
-            biases = self._detect_biases(text_lower)
-        except Exception as e:
-            errors.append(f"Bias detection error: {str(e)}")
-            biases = []
+        # Detect biases
+        biases = self._detect_biases(text_lower)
         
         return {
             'score': score,
@@ -243,8 +197,7 @@ class TrinethraAssess:
             'gaps': gaps,
             'questions': questions,
             'biases': biases,
-            'layers': layers,
-            'errors': errors
+            'layers': layers
         }
     
     def _extract_evidence(self, transcript):
@@ -341,9 +294,6 @@ class TrinethraAssess:
     def _calculate_score(self, text, evidence, layers, dimensions):
         """Calculate rubric score based on evidence and patterns."""
         
-        # Detect task absorption (personal dependency) - caps score at 6
-        has_task_absorption = any(phrase in text for phrase in self.TASK_ABSORPTION_PHRASES)
-        
         # Check for problem identification (Level 7+ signal)
         problem_identifier_phrases = ['noticed', 'found that', 'discovered', 'identified', 'quantified', 'tracked', 'analysis']
         has_problem_id = any(phrase in text for phrase in problem_identifier_phrases)
@@ -351,37 +301,26 @@ class TrinethraAssess:
         # Check for system creation (Layer 2 strong)
         has_system_creation = layers['systems_building'] and layers['layer2_strength'] >= 2
         
-        # Check for lack of initiative (negative signal - ceiling at 6)
-        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative', 'does what i tell', 'tells him to do']
+        # Check for lack of initiative (negative signal for high scores)
+        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative']
         has_lack_initiative = any(phrase in text for phrase in lack_initiative)
         
         # Dimension coverage
         dimension_count = sum(dimensions.values())
         
-        # Base core score calculation (before bias adjustments)
+        # Base score calculation
         if has_lack_initiative:
-            core_score = 5  # Ceiling at 5-6 due to no initiative
+            base_score = 5
         elif has_problem_id and has_system_creation:
-            core_score = 8
+            base_score = 8
         elif has_problem_id:
-            core_score = 7
+            base_score = 7
         elif has_system_creation:
-            core_score = 7 if dimension_count >= 2 else 6
+            base_score = 7 if dimension_count >= 2 else 6
         elif dimension_count >= 2:
-            core_score = 6
+            base_score = 6
         else:
-            core_score = 5
-        
-        # Apply bias caps
-        # Task absorption caps at 6 (if Fellow personally runs things)
-        if has_task_absorption and core_score > 6:
-            core_score = 6
-        
-        # If no initiative (lack of push back), cap at 6
-        if has_lack_initiative and core_score > 6:
-            core_score = 6
-        
-        base_score = core_score
+            base_score = 5
         
         # Get band and label
         if base_score <= 3:

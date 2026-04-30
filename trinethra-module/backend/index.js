@@ -66,21 +66,7 @@ function buildPrompt(transcript) {
     })
     .join('\n\n');
 
-  return `You are helping a psychology intern analyze supervisor feedback for a DT Fellow (early-career professional in 3-6 month placement). Use the rubric defined below.
-
-CRITICAL SCORING RULES:
-1. SUPERVISOR BIASES TO WATCH:
-   - Helpfulness: "handles all my calls", "my right hand" = task absorption, NOT systems building (max 6)
-   - Presence: "always on the floor" ≠ systems building
-   - Halo: One big positive story can inflate score
-2. TASK ABSORPTION vs SYSTEMS: If Fellow personally runs things (meetings, calls, schedules) and nothing continues if they leave = max 5-6. Real systems = trackers, SOPs, processes that persist.
-3. 6 vs 7 BOUNDARY (MOST IMPORTANT):
-   - Score 6: Executes tasks supervisor defines ("does everything I give him")
-   - Score 7: Identifies problems supervisor hadn't noticed ("rejection rate higher on Mondays")
-4. TRAP CASES - How to score:
-   - Karthik (expect 6-7): Supervisor says "Very sincere" but "doesn't push back" = no initiative = ceiling at 6
-   - Meena (expect 7-8): Supervisor critical "too much on laptop" BUT built order tracker, quantified rejection, saved shipment = Layer 2 = 7-8
-   - Anil (expect 5-6): Glowing "my right hand" BUT handles calls/runs meetings = task absorption = cap at 6
+  return `You are helping a psychology intern analyze supervisor feedback for a Fellow. Use the rubric defined below and the KPI labels exactly as shown.
 
 Rubric:
 ${rubricSummary}
