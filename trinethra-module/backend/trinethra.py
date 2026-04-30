@@ -129,19 +129,26 @@ class TrinethraAssess:
     
     # Assessment dimension keywords
     DIMENSION_KEYWORDS = {
-        'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
+'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
         'Building Systems': ['system', 'tracker', 'sheet', 'template', 'process', 'automate', 'structure', ' SOP', 'document'],
         'KPI Impact': ['faster', 'saved', 'reduced', 'increased', 'improved', 'dropped', 'better', 'numbers', 'metrics'],
         'Change Management': ['resistance', 'adopt', 'workers', 'floor team', 'introduce', 'new process', 'compliance', 'listen to']
     }
-    
+
     # Supervisor bias indicators
     BIAS_INDICATORS = {
-        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves'],
+        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves', 'my right hand', "don't know how we managed"],
         'presence': ['always on', 'on the floor', 'physically', 'present', 'never leaves'],
         'halo': ['love', 'glowing', 'amazing', 'fantastic', 'couldn\'t manage without'],
         'recency': ['last week', 'recently', 'lately', 'these days', 'past few']
     }
+    
+    # Task absorption phrases - indicate personal dependency, NOT systems building
+    TASK_ABSORPTION_PHRASES = [
+        'runs my', 'takes my calls', 'handles all my', 'coordinates with',
+        'manages my', 'does my', 'in my office', 'personal',
+        'takes so much off', 'takes over', 'does another', 'doing raghav\'s'
+    ]
     
     # Rubric band definitions
     RUBRIC_BANDS = {
@@ -160,44 +167,81 @@ class TrinethraAssess:
         Returns:
             dict: Structured assessment with score, evidence, KPIs, gaps, questions
         """
+        errors = []
+        
         if not transcript or not isinstance(transcript, str):
-            return {'error': 'Transcript is required'}
+            return {'error': 'Transcript is required', 'errors': ['Transcript is required']}
         
         text_lower = transcript.lower()
         
-        # Extract evidence
-        evidence = self._extract_evidence(transcript)
+        # Extract evidence with error handling
+        try:
+            evidence = self._extract_evidence(transcript)
+        except Exception as e:
+            errors.append(f"Evidence extraction error: {str(e)}")
+            evidence = []
         
-        # Determine layer presence
-        layers = self._detect_layers(text_lower)
+        # Determine layer presence with error handling
+        try:
+            layers = self._detect_layers(text_lower)
+        except Exception as e:
+            errors.append(f"Layer detection error: {str(e)}")
+            layers = {'execution': True, 'systems_building': False, 'layer2_strength': 0}
         
-        # Map KPIs
-        kpis = self._map_kpis(text_lower)
+        # Map KPIs with error handling
+        try:
+            kpi_mapping = self._map_kpis_detailed(text_lower)
+        except Exception as e:
+            errors.append(f"KPI mapping error: {str(e)}")
+            kpi_mapping = []
         
-        # Detect assessment dimensions
-        dimensions = self._detect_dimensions(text_lower)
+        # Detect assessment dimensions with error handling
+        try:
+            dimensions = self._detect_dimensions(text_lower)
+        except Exception as e:
+            errors.append(f"Dimension detection error: {str(e)}")
+            dimensions = {'Driving Execution': True, 'Building Systems': False, 'KPI Impact': False, 'Change Management': False}
         
-        # Calculate score
-        score = self._calculate_score(text_lower, evidence, layers, dimensions)
+        # Calculate score with error handling
+        try:
+            score = self._calculate_score(text_lower, evidence, layers, dimensions)
+        except Exception as e:
+            errors.append(f"Score calculation error: {str(e)}")
+            score = {
+                'value': 5,
+                'label': 'Consistent Performer',
+                'band': 'Productivity',
+                'justification': 'Assessment encountered errors. Default score applied.'
+            }
         
-        # Identify gaps
-        gaps = self._identify_gaps(dimensions, layers, evidence)
+        # Identify gaps with error handling
+        try:
+            gaps = self._identify_gaps(dimensions, layers, evidence)
+        except Exception as e:
+            errors.append(f"Gap identification error: {str(e)}")
+            gaps = []
         
-        # Generate follow-up questions
-        questions = self._generate_questions(gaps, dimensions)
+        # Generate follow-up questions with error handling
+        try:
+            follow_up_questions = self._generate_follow_up_questions(gaps, dimensions)
+        except Exception as e:
+            errors.append(f"Question generation error: {str(e)}")
+            follow_up_questions = [{'question': 'Has the Fellow ever come to you with a problem you had not noticed?', 'targetGap': 'problem_identification', 'lookingFor': 'Evidence of independent problem identification.'}]
         
-        # Detect biases
-        biases = self._detect_biases(text_lower)
+        # Detect biases with error handling
+        try:
+            biases = self._detect_biases(text_lower)
+        except Exception as e:
+            errors.append(f"Bias detection error: {str(e)}")
+            biases = []
         
         return {
             'score': score,
             'evidence': evidence,
-            'kpis': kpis,
-            'dimensions': dimensions,
+            'kpiMapping': kpi_mapping,
             'gaps': gaps,
-            'questions': questions,
-            'biases': biases,
-            'layers': layers
+            'followUpQuestions': follow_up_questions,
+            'errors': errors
         }
     
     def _extract_evidence(self, transcript):
@@ -252,15 +296,35 @@ class TrinethraAssess:
             'layer2_strength': layer2_score
         }
     
-    def _map_kpis(self, text):
-        """Map transcript text to KPI categories."""
-        matched_kpis = []
+    def _map_kpis_detailed(self, text):
+        """Map transcript text to KPI categories with evidence and system/personal classification."""
+        kpi_mappings = []
         
         for kpi, keywords in self.KPI_KEYWORDS.items():
             if any(kw in text for kw in keywords):
-                matched_kpis.append(kpi.replace('_', ' ').title())
+                # Find evidence quote
+                evidence_quote = self._find_kpi_evidence(text, keywords)
+                
+                # Determine if system or personal
+                system_or_personal = 'personal'  # default
+                if any(sys_word in text.lower() for sys_word in ['built', 'created', 'tracker', 'process', 'system']):
+                    system_or_personal = 'system'
+                
+                kpi_mappings.append({
+                    'kpi': kpi.replace('_', ' ').title(),
+                    'evidence': evidence_quote,
+                    'systemOrPersonal': system_or_personal
+                })
         
-        return matched_kpis[:4]
+        return kpi_mappings[:4]
+    
+    def _find_kpi_evidence(self, text, keywords):
+        """Find a relevant quote for KPI evidence."""
+        sentences = re.split(r'[.!?]+', text)
+        for sentence in sentences:
+            if any(kw in sentence.lower() for kw in keywords):
+                return sentence.strip()[:150]
+        return "KPI impact mentioned in transcript."
     
     def _detect_dimensions(self, text):
         """Detect which assessment dimensions are covered."""
@@ -294,6 +358,9 @@ class TrinethraAssess:
     def _calculate_score(self, text, evidence, layers, dimensions):
         """Calculate rubric score based on evidence and patterns."""
         
+        # Detect task absorption (personal dependency) - caps score at 6
+        has_task_absorption = any(phrase in text for phrase in self.TASK_ABSORPTION_PHRASES)
+        
         # Check for problem identification (Level 7+ signal)
         problem_identifier_phrases = ['noticed', 'found that', 'discovered', 'identified', 'quantified', 'tracked', 'analysis']
         has_problem_id = any(phrase in text for phrase in problem_identifier_phrases)
@@ -301,26 +368,37 @@ class TrinethraAssess:
         # Check for system creation (Layer 2 strong)
         has_system_creation = layers['systems_building'] and layers['layer2_strength'] >= 2
         
-        # Check for lack of initiative (negative signal for high scores)
-        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative']
+        # Check for lack of initiative (negative signal - ceiling at 6)
+        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative', 'does what i tell', 'tells him to do']
         has_lack_initiative = any(phrase in text for phrase in lack_initiative)
         
         # Dimension coverage
         dimension_count = sum(dimensions.values())
         
-        # Base score calculation
+        # Base core score calculation (before bias adjustments)
         if has_lack_initiative:
-            base_score = 5
+            core_score = 5  # Ceiling at 5-6 due to no initiative
         elif has_problem_id and has_system_creation:
-            base_score = 8
+            core_score = 8
         elif has_problem_id:
-            base_score = 7
+            core_score = 7
         elif has_system_creation:
-            base_score = 7 if dimension_count >= 2 else 6
+            core_score = 7 if dimension_count >= 2 else 6
         elif dimension_count >= 2:
-            base_score = 6
+            core_score = 6
         else:
-            base_score = 5
+            core_score = 5
+        
+        # Apply bias caps
+        # Task absorption caps at 6 (if Fellow personally runs things)
+        if has_task_absorption and core_score > 6:
+            core_score = 6
+        
+        # If no initiative (lack of push back), cap at 6
+        if has_lack_initiative and core_score > 6:
+            core_score = 6
+        
+        base_score = core_score
         
         # Get band and label
         if base_score <= 3:
@@ -381,7 +459,7 @@ class TrinethraAssess:
         
         return gaps
     
-    def _generate_questions(self, gaps, dimensions):
+    def _generate_follow_up_questions(self, gaps, dimensions):
         """Generate follow-up questions based on gaps."""
         questions = []
         
@@ -389,18 +467,43 @@ class TrinethraAssess:
             dim = gap['dimension']
             
             if dim == 'systems_building':
-                questions.append('If the Fellow took a week off, what would stop working? What would keep running on its own?')
+                questions.append({
+                    'question': 'If the Fellow took a week off, what would stop working? What would keep running on its own?',
+                    'targetGap': 'systems_building',
+                    'lookingFor': 'Evidence of self-sustaining systems vs. personal task execution.'
+                })
             elif dim == 'change_management':
-                questions.append('How do the floor workers respond when the Fellow asks them to do something differently?')
+                questions.append({
+                    'question': 'How do the floor workers respond when the Fellow asks them to do something differently?',
+                    'targetGap': 'change_management',
+                    'lookingFor': 'Whether the Fellow can influence experienced workers to adopt new processes.'
+                })
             elif dim == 'kpi_impact':
-                questions.append('Since the Fellow started, has any specific number improved — speed, complaints, rejections?')
+                questions.append({
+                    'question': 'Since the Fellow started, has any specific number improved — speed, complaints, rejections?',
+                    'targetGap': 'kpi_impact',
+                    'lookingFor': 'Quantifiable business outcomes from the Fellow\'s work.'
+                })
             elif dim == 'building_systems':
-                questions.append('Has the Fellow built anything that your team uses regularly after they leave?')
+                questions.append({
+                    'question': 'Has the Fellow built anything that your team uses regularly after they leave?',
+                    'targetGap': 'building_systems',
+                    'lookingFor': 'Systems or tools that survive the Fellow\'s departure.'
+                })
+            elif dim == 'execution':
+                questions.append({
+                    'question': 'Has the Fellow ever come to you with a problem you hadn\'t noticed?',
+                    'targetGap': 'problem_identification',
+                    'lookingFor': 'Evidence of independent problem identification beyond assigned tasks.'
+                })
         
         # Add general questions if needed
-        if not questions:
-            questions.append('Has the Fellow ever come to you with a problem you hadn\'t noticed?')
-            questions.append('When was the last time the Fellow suggested a new approach or process?')
+        if len(questions) < 3:
+            questions.append({
+                'question': 'When was the last time the Fellow suggested a new approach or process?',
+                'targetGap': 'initiative',
+                'lookingFor': 'Recent examples of independent thinking or process improvement.'
+            })
         
         return questions[:3]
     

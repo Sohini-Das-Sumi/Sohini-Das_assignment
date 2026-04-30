@@ -2,15 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = 3001;
-const rubricFile = path.join(__dirname, '..', 'rubric.json');
-
-const rubricData = JSON.parse(fs.readFileSync(rubricFile, 'utf8'));
-const rubricBands = rubricData.rubric.bands;
-const kpiList = rubricData.kpis.map((item) => item.label);
-const assessmentDimensions = rubricData.assessmentDimensions.map((item) => item.label);
 
 app.use(cors());
 app.use(express.json());
@@ -23,33 +18,42 @@ app.post('/analyze', async (req, res) => {
   }
 
   try {
-    const prompt = buildPrompt(transcript);
-
-    const response = await fetch('http://localhost:11434/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'mistral:latest',
-        prompt,
-        temperature: 0.2,
-        max_tokens: 750,
-        stream: false
-      })
+    // Call Python script with the transcript
+    const pythonProcess = spawn('py', ['trinethra.py'], {
+      cwd: __dirname,
+      stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ollama API error: ${errorText}`);
-    }
+    // Send transcript to Python script
+    pythonProcess.stdin.write(JSON.stringify({ transcript }));
+    pythonProcess.stdin.end();
 
-    const data = await response.json();
-    const analysis = parseJsonResponse(data.response);
+    let output = '';
+    let errorOutput = '';
 
-    if (!analysis) {
-      throw new Error('Could not parse LLM response as JSON');
-    }
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
 
-    res.json(analysis);
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('Python script error:', errorOutput);
+        return res.status(500).json({ error: 'Analysis failed', details: errorOutput });
+      }
+
+      try {
+        const result = JSON.parse(output.trim());
+        res.json(result);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError, 'Output:', output);
+        res.status(500).json({ error: 'Failed to parse analysis result' });
+      }
+    });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message || 'Failed to analyze transcript' });
