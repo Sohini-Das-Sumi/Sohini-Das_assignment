@@ -1,0 +1,102 @@
+{
+  "summary": {
+    "total_entries": 4,
+    "processed_entries": 4,
+    "average_score": 6.5,
+    "min_score": 5,
+    "max_score": 8,
+    "score_distribution": {
+      "1-3": 0,
+      "4-6": 2,
+      "7-10": 2
+    },
+    "band_distribution": {
+      "Need Attention": 0,
+      "Productivity": 2,
+      "Performance": 2
+    },
+    "common_kpis": {
+      "Quality": 4,
+      "Pat": 2,
+      "Tat": 2,
+      "Nps": 1
+    },
+    "common_gaps": {
+      "systems_building": 2,
+      "change_management": 2,
+      "building_systems": 1
+    },
+    "layer_distribution": {
+      "execution_only": 4,
+      "systems_building": 0,
+      "mixed": 0
+    },
+    "error_rate": 0.0
+  },
+  "results": [
+    {
+      "index": 1,
+      "score": 6,
+      "band": "Productivity",
+      "label": "Reliable and Productive",
+      "kpis": [
+        "Nps",
+        "Pat",
+        "Tat",
+        "Quality"
+      ],
+      "gaps": [
+        "systems_building"
+      ],
+      "layers": {},
+      "errors": []
+    },
+    {
+      "index": 2,
+      "score": 7,
+      "band": "Performance",
+      "label": "Problem Identifier",
+      "kpis": [
+        "Pat",
+        "Quality"
+      ],
+      "gaps": [
+        "change_management"
+      ],
+      "layers": {},
+      "errors": []
+    },
+    {
+      "index": 3,
+      "score": 5,
+      "band": "Productivity",
+      "label": "Consistent Performer",
+      "kpis": [
+        "Tat",
+        "Quality"
+      ],
+      "gaps": [
+        "systems_building",
+        "change_management",
+        "building_systems"
+      ],
+      "layers": {},
+      "errors": []
+    },
+    {
+      "index": 4,
+      "score": 8,
+      "band": "Performance",
+      "label": "Problem Solver",
+      "kpis": [
+        "Quality"
+      ],
+      "gaps": [],
+      "layers": {},
+      "errors": []
+    }
+  ],
+  "errors": [],
+  "total_processed": 4,
+  "total_errors": 0
+}

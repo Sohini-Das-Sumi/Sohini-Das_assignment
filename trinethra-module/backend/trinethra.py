@@ -1,5 +1,6 @@
 import re
 import json
+import csv
 from collections import Counter
 
 try:
@@ -69,6 +70,106 @@ class TrinethraCore:
         normalized = re.sub(r'\s+', ' ', standardized).strip()
         
         return normalized
+    def process_batch(self, feedback_list):
+        """Processes a list of strings and returns a summary report."""
+        results = []
+        total_score = 0
+
+        for text in feedback_list:
+            score = self.get_score(text) # Calls your previous logic
+            results.append({"text": text, "score": score})
+            total_score += score
+
+        average = total_score / len(feedback_list) if feedback_list else 0
+        
+        return {
+            "average_team_score": round(average, 2),
+            "total_entries": len(feedback_list),
+            "detailed_results": results
+        }
+
+    def process_csv(self, file_path):
+        """Reads a CSV, extracts the feedback column, and processes it."""
+        feedbacks = []
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                # Assuming your CSV column is named 'feedback'
+                feedbacks.append(row['feedback'])
+        
+        return self.process_batch(feedbacks)
+    
+    def __init__(self):
+        # Basic scoring dictionary for logic
+        self.sentiment_map = {
+            "excellent": 10, "great": 9, "good": 8, 
+            "progress": 7, "inconsistent": 4, "struggles": 2
+        }
+
+    def preprocess_text(self, text):
+        """Cleans the text: lowercase and removes special characters."""
+        text = text.lower()
+        return re.sub(r'[^a-zA-Z0-9\s]', '', text)
+
+    def get_score(self, text):
+        """Simple scoring logic based on keyword detection."""
+        clean_text = self.preprocess_text(text)
+        score = 5  # Default neutral score
+        for word, value in self.sentiment_map.items():
+            if word in clean_text:
+                score = value
+        return score
+
+    def process_batch(self, feedback_list):
+        """Processes a list of strings and returns a summary report."""
+        results = []
+        total_score = 0
+
+        for text in feedback_list:
+            score = self.get_score(text)
+            results.append({"text": text, "score": score})
+            total_score += score
+
+        average = total_score / len(feedback_list) if feedback_list else 0
+        
+        return {
+            "average_team_score": round(average, 2),
+            "total_entries": len(feedback_list),
+            "detailed_results": results
+        }
+
+    def process_csv(self, file_path):
+        """Reads a CSV, extracts the feedback column, and processes it."""
+        feedbacks = []
+        try:
+            with open(file_path, mode='r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    # We use the column name 'feedback' from our test CSV
+                    feedbacks.append(row['feedback'])
+            
+            return self.process_batch(feedbacks)
+        except FileNotFoundError:
+            return {"error": "File not found. Please check the file path."}
+        except KeyError:
+            return {"error": "Column 'feedback' not found in CSV."}
+
+# --- TEST RUNNER SECTION ---
+if __name__ == "__main__":
+    analyzer = TrinethraCore()
+    
+    # Ensure 'test_feedback.csv' exists in the same folder
+    report = analyzer.process_csv('test_feedback.csv')
+    
+    if "error" in report:
+        print(f"Error: {report['error']}")
+    else:
+        print("-" * 30)
+        print("TRINETHRA BATCH REPORT")
+        print("-" * 30)
+        print(f"Total Entries: {report['total_entries']}")
+        print(f"Team Performance Average: {report['average_team_score']}/10")
+        print("-" * 30)
 
 
 class TrinethraAssess:
@@ -600,6 +701,200 @@ class TrinethraAssess:
         }
 
 
+class TrinethraBatchProcessor:
+    """
+    TrinethraBatchProcessor handles batch processing of multiple feedback transcripts.
+    
+    Provides functionality to process lists of feedbacks or CSV files and generate
+    comprehensive summary reports with aggregated statistics.
+    """
+
+    def __init__(self):
+        self.assessor = TrinethraAssess()
+
+    def process_batch_feedbacks(self, feedback_list):
+        """
+        Process a list of feedback transcripts and return a comprehensive summary report.
+
+        Args:
+            feedback_list (list): List of feedback transcript strings
+
+        Returns:
+            dict: Comprehensive batch processing report
+        """
+        if not feedback_list or not isinstance(feedback_list, list):
+            return {'error': 'Feedback list must be a non-empty list of strings'}
+
+        results = []
+        errors = []
+        total_scores = []
+        band_counts = {'Need Attention': 0, 'Productivity': 0, 'Performance': 0}
+        kpi_counts = {}
+        gap_counts = {}
+        layer_stats = {'execution_only': 0, 'systems_building': 0, 'mixed': 0}
+
+        for i, feedback in enumerate(feedback_list):
+            try:
+                if not isinstance(feedback, str) or not feedback.strip():
+                    errors.append(f'Entry {i+1}: Invalid or empty feedback')
+                    continue
+
+                assessment = self.assessor.assess_transcript(feedback.strip())
+
+                if 'error' in assessment:
+                    errors.append(f'Entry {i+1}: {assessment["error"]}')
+                    continue
+
+                # Extract key metrics
+                score_value = assessment['score']['value']
+                band = assessment['score']['band']
+
+                total_scores.append(score_value)
+                band_counts[band] += 1
+
+                # Count KPIs
+                for kpi in assessment.get('kpiMapping', []):
+                    kpi_name = kpi.get('kpi', 'Unknown')
+                    kpi_counts[kpi_name] = kpi_counts.get(kpi_name, 0) + 1
+
+                # Count gaps
+                for gap in assessment.get('gaps', []):
+                    gap_type = gap.get('dimension', 'unknown')
+                    gap_counts[gap_type] = gap_counts.get(gap_type, 0) + 1
+
+                # Layer statistics
+                layers = assessment.get('layers', {})
+                if layers.get('systems_building') and layers.get('execution'):
+                    layer_stats['mixed'] += 1
+                elif layers.get('systems_building'):
+                    layer_stats['systems_building'] += 1
+                else:
+                    layer_stats['execution_only'] += 1
+
+                # Store individual result
+                results.append({
+                    'index': i + 1,
+                    'score': score_value,
+                    'band': band,
+                    'label': assessment['score']['label'],
+                    'kpis': [k['kpi'] for k in assessment.get('kpiMapping', [])],
+                    'gaps': [g['dimension'] for g in assessment.get('gaps', [])],
+                    'layers': layers,
+                    'errors': assessment.get('errors', [])
+                })
+
+            except Exception as e:
+                errors.append(f'Entry {i+1}: Unexpected error - {str(e)}')
+
+        # Calculate summary statistics
+        summary = self._generate_batch_summary(total_scores, band_counts, kpi_counts, gap_counts, layer_stats, len(feedback_list), errors)
+
+        return {
+            'summary': summary,
+            'results': results,
+            'errors': errors,
+            'total_processed': len(results),
+            'total_errors': len(errors)
+        }
+
+    def process_csv_file(self, file_path, feedback_column='feedback'):
+        """
+        Process feedback transcripts from a CSV file.
+
+        Args:
+            file_path (str): Path to the CSV file
+            feedback_column (str): Name of the column containing feedback text
+
+        Returns:
+            dict: Batch processing report
+        """
+        try:
+            import csv
+        except ImportError:
+            return {'error': 'CSV processing requires the csv module'}
+
+        feedback_list = []
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+
+                # Check if the specified column exists
+                if feedback_column not in reader.fieldnames:
+                    available_columns = ', '.join(reader.fieldnames)
+                    return {
+                        'error': f'Column "{feedback_column}" not found in CSV. Available columns: {available_columns}'
+                    }
+
+                for row_num, row in enumerate(reader, 1):
+                    feedback = row.get(feedback_column, '').strip()
+                    if feedback:
+                        feedback_list.append(feedback)
+                    else:
+                        # Keep track of empty entries but don't add them
+                        pass
+
+        except FileNotFoundError:
+            return {'error': f'CSV file not found: {file_path}'}
+        except Exception as e:
+            return {'error': f'Error reading CSV file: {str(e)}'}
+
+        if not feedback_list:
+            return {'error': f'No valid feedback found in column "{feedback_column}"'}
+
+        return self.process_batch_feedbacks(feedback_list)
+
+    def _generate_batch_summary(self, scores, band_counts, kpi_counts, gap_counts, layer_stats, total_entries, errors):
+        """
+        Generate comprehensive summary statistics for the batch.
+        """
+        if not scores:
+            return {
+                'total_entries': total_entries,
+                'processed_entries': 0,
+                'average_score': 0,
+                'score_distribution': {},
+                'band_distribution': band_counts,
+                'common_kpis': {},
+                'common_gaps': {},
+                'layer_distribution': layer_stats,
+                'error_rate': 100.0 if total_entries > 0 else 0
+            }
+
+        # Calculate score statistics
+        avg_score = sum(scores) / len(scores)
+        min_score = min(scores)
+        max_score = max(scores)
+
+        # Score distribution
+        score_ranges = {'1-3': 0, '4-6': 0, '7-10': 0}
+        for score in scores:
+            if score <= 3:
+                score_ranges['1-3'] += 1
+            elif score <= 6:
+                score_ranges['4-6'] += 1
+            else:
+                score_ranges['7-10'] += 1
+
+        # Sort KPIs and gaps by frequency
+        top_kpis = sorted(kpi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_gaps = sorted(gap_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        return {
+            'total_entries': total_entries,
+            'processed_entries': len(scores),
+            'average_score': round(avg_score, 2),
+            'min_score': min_score,
+            'max_score': max_score,
+            'score_distribution': score_ranges,
+            'band_distribution': band_counts,
+            'common_kpis': dict(top_kpis),
+            'common_gaps': dict(top_gaps),
+            'layer_distribution': layer_stats,
+            'error_rate': round((len(errors) / total_entries) * 100, 2) if total_entries > 0 else 0
+        }
+
+
 class TrinethraModule:
     """
     TrinethraModule analyzes supervisor feedback transcripts using NLP techniques.
@@ -712,14 +1007,79 @@ class TrinethraModule:
         return summary.strip()
 
 
-if __name__ == '__main__':
-    # Example usage
-    analyzer = TrinethraModule()
+if __name__ == "__main__":
+    # Example 1: Batch processing with a list of feedbacks
+    batch_processor = TrinethraBatchProcessor()
     
-    sample_feedback = "He maintains production tracking, coordinates quality complaints, and helped optimize the machine layout. His execution is solid but hasn't yet shown systems thinking."
+    test_feedbacks = [
+        "He is very reliable and gets things done on time. Always follows instructions perfectly.",
+        "She built an excellent tracking system for production and identified key bottlenecks. Team uses her tools daily.",
+        "He does what I ask but doesn't take initiative. No systems thinking evident.",
+        "She noticed quality issues and created a dashboard that reduced defects by 20%. Outstanding work.",
+        "He helps with coordination but everything stops when he's not there. No lasting systems."
+    ]
     
-    result = analyzer.analyze_feedback(sample_feedback)
-    print("Analysis Result:")
-    print(f"Sentiment Score: {result['sentiment_score']}")
-    print(f"Topics: {result['topics']}")
-    print(f"Summary: {result['summary']}")
+    print("\n" + "="*60)
+    print("BATCH PROCESSING EXAMPLE 1: Feedback List")
+    print("="*60)
+    
+    batch_result = batch_processor.process_batch_feedbacks(test_feedbacks)
+    
+    if 'error' in batch_result:
+        print(f"Error: {batch_result['error']}")
+    else:
+        summary = batch_result['summary']
+        print(f"\nSummary Statistics:")
+        print(f"  Total entries: {summary['total_entries']}")
+        print(f"  Processed: {summary['processed_entries']}")
+        print(f"  Average score: {summary['average_score']}/10")
+        print(f"  Min score: {summary['min_score']}, Max score: {summary['max_score']}")
+        print(f"\nScore Distribution (1-3: Need Attention, 4-6: Productivity, 7-10: Performance):")
+        print(f"  {summary['score_distribution']}")
+        print(f"\nBand Distribution:")
+        for band, count in summary['band_distribution'].items():
+            print(f"  {band}: {count} Fellows")
+        print(f"\nTop KPIs (Most Common):")
+        for kpi, count in summary['common_kpis'].items():
+            print(f"  {kpi}: {count} mentions")
+        print(f"\nMost Common Gaps:")
+        for gap, count in summary['common_gaps'].items():
+            print(f"  {gap}: {count} instances")
+        print(f"\nLayer Distribution:")
+        print(f"  Execution only: {summary['layer_distribution']['execution_only']}")
+        print(f"  Systems building: {summary['layer_distribution']['systems_building']}")
+        print(f"  Mixed: {summary['layer_distribution']['mixed']}")
+        print(f"\nError rate: {summary['error_rate']}%")
+        
+        print(f"\n{'='*60}")
+        print("Individual Results Summary:")
+        print(f"{'='*60}")
+        for result in batch_result['results']:
+            print(f"Entry {result['index']}: Score {result['score']} - {result['label']} ({result['band']})")
+            if result['kpis']:
+                print(f"  KPIs: {', '.join(result['kpis'])}")
+            if result['errors']:
+                print(f"  Errors: {', '.join(result['errors'])}")
+    
+    # Example 2: CSV file processing (if a test CSV exists)
+    print(f"\n{'='*60}")
+    print("BATCH PROCESSING EXAMPLE 2: CSV File (Optional)")
+    print(f"{'='*60}")
+    
+    import os
+    if os.path.exists('test_feedbacks.csv'):
+        print("\nProcessing CSV file: test_feedbacks.csv")
+        csv_result = batch_processor.process_csv_file('test_feedbacks.csv', feedback_column='feedback')
+        
+        if 'error' in csv_result:
+            print(f"Error: {csv_result['error']}")
+        else:
+            csv_summary = csv_result['summary']
+            print(f"CSV Results: {csv_summary['processed_entries']} feedbacks processed")
+            print(f"Average score: {csv_summary['average_score']}")
+    else:
+        print("\nNo test_feedbacks.csv found. To test CSV processing:")
+        print("1. Create a CSV file with columns: 'feedback', 'fellow_name' (optional)")
+        print("2. Run: batch_processor.process_csv_file('your_file.csv')")
+
+
