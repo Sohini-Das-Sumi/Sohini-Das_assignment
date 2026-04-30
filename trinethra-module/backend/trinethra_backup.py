@@ -264,7 +264,7 @@ class TrinethraAssess:
         matched_kpis = []
         
         for kpi, keywords in self.KPI_KEYWORDS.items():
-if any(kw in text for kw in keywords):
+            if any(kw in text for kw in keywords):
                 matched_kpis.append(kpi.replace('_', ' ').title())
         
         return matched_kpis[:4]
