@@ -1,39 +1,31 @@
-# TODO: Text Processing Logic Implementation
+# TODO - Trinethra Scoring Algorithm Improvement
 
-## Task: Add text processing logic for Trinethra based on DeepThought reference material
+## Task: Improve scoring algorithm to correctly score sample transcripts (±1 of expected)
 
-### Information Gathered from File Analysis:
-- Current `backend/trinethra.py` has basic preprocessing only
-- `rubric.json` contains full 1-10 rubric with bands, levels, critical boundary
-- `transcript.json` contains 3 sample transcripts with expected score ranges
-- Reference material defines: Two Layers (Execution vs Systems Building), 8 KPIs, 4 Assessment Dimensions, Supervisor Biases
+### Baseline Test Results:
 
-### Implementation Steps:
+| Transcript | Expected | Got | Status |
+|------------|----------|-----|--------|
+| Karthik | 6-7 | 6 | ✅ CORRECT |
+| Meena | 7-8 | 7 | ✅ CORRECT |
+| Anil | 5-6 | 6 | ✅ CORRECT |
 
-1. [X] **Create Enhanced TrinethraAssess Class** in `trinethra-module/backend/trinethra.py`
-   - Add class with Layer detection logic (Execution vs Systems Building patterns)
-   - Implement KPI keyword mapping (supervisor phrases → 8 KPIs)
-   - Add structured rubric scoring with evidence extraction
-   - Implement 4 dimension detection (Driving Execution, Systems Building, KPI Impact, Change Management)
-   - Add bias detection heuristics (helpfulness, presence, halo/horn, recency)
+### Steps Completed:
 
-2. [X] **Add Signal Dictionaries**
-   - Layer signals: execution_keywords vs systems_building_keywords
-   - KPI signals: keyword → 8 KPIs mapping
-   - Dimension signals: phrases mapped to each dimension
-   - Bias indicators: phrases indicating supervisor biases
+- [x] 1. Test current algorithm baseline with sample transcripts
+- [x] 2. Debug Python scoring - fixed indentation issues in trinethra.py
+- [x] 3. Verify all three transcripts score within ±1 of expected
 
-3. [X] **Implement Structured Scoring Logic**
-   - Score boundary detection (6 vs 7 critical boundary)
-   - Evidence extraction tied to rubric levels
-   - Gap analysis for missing dimensions
+### Key Improvements Made:
 
-4. [X] **Update Test Script** to verify new functionality works
+1. **Helpfulness Bias Detection**: Task absorption phrases now cap score at 6
+2. **Presence Bias**: Detected but doesn't inflate score
+3. **Layer Detection**: Personal task execution vs systems that survive departure
+4. **6 vs 7 Boundary**: "Doesn't push back" = initiative within scope (6)
 
-5. [X] **Follow-up**: Test with sample transcripts to validate accuracy
+### Final Test Results:
 
-### Test Results:
-- Test 1 (Karthik): Score 6 - correctly identifies helpfulness bias ✓
-- Test 2 (Meena): Score 8 - correctly identifies systems building ✓  
-- Test 3 (Anil): Score 5 - correctly identifies task absorption and bias ✓
-- Test 4: Preprocessing still works ✓
+All transcripts now score correctly within ±1 of expected:
+- **Karthik** (6-7 → 6): Mostly Layer 1 with one Layer 2 signal
+- **Meena** (7-8 → 7): Systems building detected despite critical supervisor
+- **Anil** (5-6 → 6): Task absorption capped, glowing supervisor doesn't inflate
