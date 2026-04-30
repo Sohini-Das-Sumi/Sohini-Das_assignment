@@ -167,73 +167,34 @@ class TrinethraAssess:
         Returns:
             dict: Structured assessment with score, evidence, KPIs, gaps, questions
         """
-        errors = []
-        
         if not transcript or not isinstance(transcript, str):
-            return {'error': 'Transcript is required', 'errors': ['Transcript is required']}
+            return {'error': 'Transcript is required'}
         
         text_lower = transcript.lower()
         
-        # Extract evidence with error handling
-        try:
-            evidence = self._extract_evidence(transcript)
-        except Exception as e:
-            errors.append(f"Evidence extraction error: {str(e)}")
-            evidence = []
+        # Extract evidence
+        evidence = self._extract_evidence(transcript)
         
-        # Determine layer presence with error handling
-        try:
-            layers = self._detect_layers(text_lower)
-        except Exception as e:
-            errors.append(f"Layer detection error: {str(e)}")
-            layers = {'execution': True, 'systems_building': False, 'layer2_strength': 0}
+        # Determine layer presence
+        layers = self._detect_layers(text_lower)
         
-        # Map KPIs with error handling
-        try:
-            kpis = self._map_kpis(text_lower)
-        except Exception as e:
-            errors.append(f"KPI mapping error: {str(e)}")
-            kpis = []
+        # Map KPIs
+        kpis = self._map_kpis(text_lower)
         
-        # Detect assessment dimensions with error handling
-        try:
-            dimensions = self._detect_dimensions(text_lower)
-        except Exception as e:
-            errors.append(f"Dimension detection error: {str(e)}")
-            dimensions = {'Driving Execution': True, 'Building Systems': False, 'KPI Impact': False, 'Change Management': False}
+        # Detect assessment dimensions
+        dimensions = self._detect_dimensions(text_lower)
         
-        # Calculate score with error handling
-        try:
-            score = self._calculate_score(text_lower, evidence, layers, dimensions)
-        except Exception as e:
-            errors.append(f"Score calculation error: {str(e)}")
-            score = {
-                'value': 5,
-                'label': 'Consistent Performer',
-                'band': 'Productivity',
-                'justification': 'Assessment encountered errors. Default score applied.'
-            }
+        # Calculate score
+        score = self._calculate_score(text_lower, evidence, layers, dimensions)
         
-        # Identify gaps with error handling
-        try:
-            gaps = self._identify_gaps(dimensions, layers, evidence)
-        except Exception as e:
-            errors.append(f"Gap identification error: {str(e)}")
-            gaps = []
+        # Identify gaps
+        gaps = self._identify_gaps(dimensions, layers, evidence)
         
-        # Generate follow-up questions with error handling
-        try:
-            questions = self._generate_questions(gaps, dimensions)
-        except Exception as e:
-            errors.append(f"Question generation error: {str(e)}")
-            questions = ['Has the Fellow ever come to you with a problem you had not noticed?']
+        # Generate follow-up questions
+        questions = self._generate_questions(gaps, dimensions)
         
-        # Detect biases with error handling
-        try:
-            biases = self._detect_biases(text_lower)
-        except Exception as e:
-            errors.append(f"Bias detection error: {str(e)}")
-            biases = []
+        # Detect biases
+        biases = self._detect_biases(text_lower)
         
         return {
             'score': score,
@@ -243,8 +204,7 @@ class TrinethraAssess:
             'gaps': gaps,
             'questions': questions,
             'biases': biases,
-            'layers': layers,
-            'errors': errors
+            'layers': layers
         }
     
     def _extract_evidence(self, transcript):
@@ -304,7 +264,7 @@ class TrinethraAssess:
         matched_kpis = []
         
         for kpi, keywords in self.KPI_KEYWORDS.items():
-            if any(kw in text for kw in keywords):
+if any(kw in text for kw in keywords):
                 matched_kpis.append(kpi.replace('_', ' ').title())
         
         return matched_kpis[:4]
