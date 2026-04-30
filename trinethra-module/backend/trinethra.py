@@ -129,19 +129,26 @@ class TrinethraAssess:
     
     # Assessment dimension keywords
     DIMENSION_KEYWORDS = {
-        'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
+'Driving Execution': ['task', 'delivers', 'on time', 'follow up', 'initiates', 'completes', 'finishes', 'gets done', 'starts working'],
         'Building Systems': ['system', 'tracker', 'sheet', 'template', 'process', 'automate', 'structure', ' SOP', 'document'],
         'KPI Impact': ['faster', 'saved', 'reduced', 'increased', 'improved', 'dropped', 'better', 'numbers', 'metrics'],
         'Change Management': ['resistance', 'adopt', 'workers', 'floor team', 'introduce', 'new process', 'compliance', 'listen to']
     }
-    
+
     # Supervisor bias indicators
     BIAS_INDICATORS = {
-        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves'],
+        'helpfulness': ['handles all', 'takes off my plate', 'big relief', 'helper', 'does everything', 'relieves', 'my right hand', "don't know how we managed"],
         'presence': ['always on', 'on the floor', 'physically', 'present', 'never leaves'],
         'halo': ['love', 'glowing', 'amazing', 'fantastic', 'couldn\'t manage without'],
         'recency': ['last week', 'recently', 'lately', 'these days', 'past few']
     }
+    
+    # Task absorption phrases - indicate personal dependency, NOT systems building
+    TASK_ABSORPTION_PHRASES = [
+        'runs my', 'takes my calls', 'handles all my', 'coordinates with',
+        'manages my', 'does my', 'in my office', 'personal',
+        'takes so much off', 'takes over', 'does another', 'doing raghav\'s'
+    ]
     
     # Rubric band definitions
     RUBRIC_BANDS = {
@@ -257,7 +264,7 @@ class TrinethraAssess:
         matched_kpis = []
         
         for kpi, keywords in self.KPI_KEYWORDS.items():
-            if any(kw in text for kw in keywords):
+if any(kw in text for kw in keywords):
                 matched_kpis.append(kpi.replace('_', ' ').title())
         
         return matched_kpis[:4]
@@ -294,6 +301,9 @@ class TrinethraAssess:
     def _calculate_score(self, text, evidence, layers, dimensions):
         """Calculate rubric score based on evidence and patterns."""
         
+        # Detect task absorption (personal dependency) - caps score at 6
+        has_task_absorption = any(phrase in text for phrase in self.TASK_ABSORPTION_PHRASES)
+        
         # Check for problem identification (Level 7+ signal)
         problem_identifier_phrases = ['noticed', 'found that', 'discovered', 'identified', 'quantified', 'tracked', 'analysis']
         has_problem_id = any(phrase in text for phrase in problem_identifier_phrases)
@@ -301,26 +311,37 @@ class TrinethraAssess:
         # Check for system creation (Layer 2 strong)
         has_system_creation = layers['systems_building'] and layers['layer2_strength'] >= 2
         
-        # Check for lack of initiative (negative signal for high scores)
-        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative']
+        # Check for lack of initiative (negative signal - ceiling at 6)
+        lack_initiative = ['doesn\'t push back', 'doesn\'t question', 'just does', 'no initiative', 'does what i tell', 'tells him to do']
         has_lack_initiative = any(phrase in text for phrase in lack_initiative)
         
         # Dimension coverage
         dimension_count = sum(dimensions.values())
         
-        # Base score calculation
+        # Base core score calculation (before bias adjustments)
         if has_lack_initiative:
-            base_score = 5
+            core_score = 5  # Ceiling at 5-6 due to no initiative
         elif has_problem_id and has_system_creation:
-            base_score = 8
+            core_score = 8
         elif has_problem_id:
-            base_score = 7
+            core_score = 7
         elif has_system_creation:
-            base_score = 7 if dimension_count >= 2 else 6
+            core_score = 7 if dimension_count >= 2 else 6
         elif dimension_count >= 2:
-            base_score = 6
+            core_score = 6
         else:
-            base_score = 5
+            core_score = 5
+        
+        # Apply bias caps
+        # Task absorption caps at 6 (if Fellow personally runs things)
+        if has_task_absorption and core_score > 6:
+            core_score = 6
+        
+        # If no initiative (lack of push back), cap at 6
+        if has_lack_initiative and core_score > 6:
+            core_score = 6
+        
+        base_score = core_score
         
         # Get band and label
         if base_score <= 3:
