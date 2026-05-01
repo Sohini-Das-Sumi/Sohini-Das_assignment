@@ -1,25 +1,17 @@
 import re
 import json
+import csv
+import sys
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
 
 try:
     from textblob import TextBlob
 except ImportError:
     TextBlob = None
-
-
-class TrinethraCore:
-    """Handles text cleaning and normalization."""
-    SPECIAL_CHARACTERS = r'[^a-zA-Z0-9\s.,!?\'"-]'
-
- 
-    def preprocess_text(self, text):
-        if not text or not isinstance(text, str):
-            return ""
-        cleaned = re.sub(self.SPECIAL_CHARACTERS, '', text)
-        standardized = cleaned.lower()
-        normalized = re.sub(r'\s+', ' ', standardized).strip()
-        return normalized
-
 
 class TrinethraAssess:
     """Logic for DT Fellow performance evaluation."""
@@ -80,16 +72,15 @@ class TrinethraAssess:
             return {'error': 'Transcript is required', 'errors': ['Transcript is required']}
 
         text_lower = transcript.lower()
-
         evidence = self._extract_evidence(transcript)
         layers = self._detect_layers(text_lower)
         kpis = self._map_kpis(text_lower)
         dimensions = self._detect_dimensions(text_lower)
+        biases = self._detect_biases(text_lower)
 
         score = self._calculate_score(text_lower, evidence, layers, dimensions)
         gaps = self._identify_gaps(dimensions, layers, evidence)
         questions = self._generate_questions(gaps, dimensions)
-        biases = self._detect_biases(text_lower)
 
         return {
             'score': score,
@@ -112,13 +103,7 @@ class TrinethraAssess:
                 continue
 
             polarity = self._sentence_polarity(sentence)
-            if polarity > 0.1:
-                sentiment = 'positive'
-            elif polarity < -0.1:
-                sentiment = 'negative'
-            else:
-                sentiment = 'neutral'
-
+            sentiment = 'positive' if polarity > 0.1 else 'negative' if polarity < -0.1 else 'neutral'
             dimension = self._classify_dimension(sentence.lower())
 
             evidence.append({
@@ -131,20 +116,17 @@ class TrinethraAssess:
 
     def _classify_dimension(self, text):
         scores = {}
-
         for dim, keywords in self.DIMENSION_KEYWORDS.items():
             count = sum(1 for kw in keywords if kw in text)
             scores[dim] = count
 
         if not scores or max(scores.values()) == 0:
             return 'Driving Execution'
-
         return max(scores, key=scores.get)
 
     def _detect_layers(self, text):
         layer1_score = sum(1 for kw in self.LAYER_1_KEYWORDS if kw in text)
         layer2_score = sum(1 for kw in self.LAYER_2_KEYWORDS if kw in text)
-
         return {
             'execution': layer1_score > layer2_score,
             'systems_building': layer2_score >= layer1_score,
@@ -153,20 +135,15 @@ class TrinethraAssess:
 
     def _map_kpis(self, text):
         matched_kpis = []
-
         for kpi, keywords in self.KPI_KEYWORDS.items():
             if any(kw in text for kw in keywords):
                 matched_kpis.append(kpi.replace('_', ' ').title())
-
         return matched_kpis[:4]
 
     def _detect_dimensions(self, text):
         dimensions = {}
-
         for dim, keywords in self.DIMENSION_KEYWORDS.items():
-            present = any(kw in text for kw in keywords)
-            dimensions[dim] = present
-
+            dimensions[dim] = any(kw in text for kw in keywords)
         return dimensions
 
     def _sentence_polarity(self, sentence):
@@ -178,13 +155,26 @@ class TrinethraAssess:
         return self._keyword_polarity(sentence)
 
     def _keyword_polarity(self, text):
+        """Fixed: Proper negation handling with correct return position"""
         text_lower = text.lower()
-        positive_count = sum(1 for kw in self.POSITIVE_KEYWORDS if kw in text_lower)
-        negative_count = sum(1 for kw in self.NEGATIVE_KEYWORDS if kw in text_lower)
-        total = positive_count + negative_count
-        if total == 0:
-            return 0.0
-        return (positive_count - negative_count) / total
+        words = re.findall(r'\b\w+\b', text_lower)
+        score = 0
+        negate = False
+        
+        for word in words:
+            if word in self.NEGATORS:
+                negate = True
+                continue
+            if word in self.POSITIVE_KEYWORDS:
+                score += -1 if negate else 1
+                negate = False
+            elif word in self.NEGATIVE_KEYWORDS:
+                score += 1 if negate else -1
+                negate = False
+            else:
+                negate = False
+        
+        return score / max(len(words), 1)
 
     def _calculate_score(self, text, evidence, layers, dimensions):
         has_task_absorption = any(phrase in text for phrase in self.TASK_ABSORPTION_PHRASES)
@@ -209,8 +199,6 @@ class TrinethraAssess:
             core_score = 5
 
         if has_task_absorption and core_score > 6:
-            core_score = 6
-        if has_lack_initiative and core_score > 6:
             core_score = 6
 
         if core_score <= 3:
@@ -241,40 +229,31 @@ class TrinethraAssess:
             7: "Shows problem identification with evidence of tracking or analysis.",
             8: "Demonstrates systems building with tools or processes created."
         }
-
         base = justifications.get(score, "Mixed evidence in transcript.")
-
+        
         if not layers['systems_building']:
             base += " No clear systems building detected."
-
         if not dimensions.get('Change Management', False):
             base += " No change management evidence present."
-
         return base
 
     def _identify_gaps(self, dimensions, layers, evidence):
+        """Fixed: Uses original comprehensive gap detection"""
         gaps = []
-
         if not layers['systems_building']:
             gaps.append({'dimension': 'systems_building', 'detail': 'No evidence of systems, processes, or tools created'})
-
         if not dimensions.get('Change Management', False):
             gaps.append({'dimension': 'change_management', 'detail': 'No mention of how Fellow handles resistance or gets team adoption'})
-
         if not dimensions.get('KPI Impact', False):
             gaps.append({'dimension': 'kpi_impact', 'detail': 'No measurable business outcome connections'})
-
         if not dimensions.get('Building Systems', False):
             gaps.append({'dimension': 'building_systems', 'detail': 'No structures, trackers, or SOPs documented'})
-
         return gaps
 
     def _generate_questions(self, gaps, dimensions):
         questions = []
-
         for gap in gaps:
             dim = gap['dimension']
-
             if dim == 'systems_building':
                 questions.append('If the Fellow took a week off, what would stop working? What would keep running on its own?')
             elif dim == 'change_management':
@@ -286,21 +265,18 @@ class TrinethraAssess:
 
         if len(questions) < 3:
             questions.append('When was the last time the Fellow suggested a new approach or process?')
-
         return questions[:3]
 
     def _detect_biases(self, text):
         detected_biases = []
-
         for bias, indicators in self.BIAS_INDICATORS.items():
             if any(ind in text for ind in indicators):
                 detected_biases.append(bias)
-
         return detected_biases
 
     def analyze_sentiment_keywords(self, text):
+        """Detailed sentiment keyword analysis"""
         text_lower = text.lower()
-
         positive_count = sum(1 for kw in self.POSITIVE_KEYWORDS if kw in text_lower)
         negative_count = sum(1 for kw in self.NEGATIVE_KEYWORDS if kw in text_lower)
         keywords_found = []
@@ -308,7 +284,6 @@ class TrinethraAssess:
         for kw in self.POSITIVE_KEYWORDS:
             if kw in text_lower:
                 keywords_found.append({'keyword': kw, 'type': 'positive'})
-
         for kw in self.NEGATIVE_KEYWORDS:
             if kw in text_lower:
                 keywords_found.append({'keyword': kw, 'type': 'negative'})
@@ -317,12 +292,7 @@ class TrinethraAssess:
         total = positive_count + negative_count
 
         if total == 0:
-            return {
-                'score': 0.5,
-                'label': 'neutral',
-                'keywords_found': [],
-                'confidence': 'low'
-            }
+            return {'score': 0.5, 'label': 'neutral', 'keywords_found': [], 'confidence': 'low'}
 
         if positive_count > negative_count:
             raw_score = (positive_count / total) * 0.5 + 0.5
@@ -335,20 +305,8 @@ class TrinethraAssess:
             raw_score = 1.0 - raw_score
 
         score = max(0.0, min(1.0, raw_score))
-
-        if score >= 0.6:
-            label = 'positive'
-        elif score <= 0.4:
-            label = 'negative'
-        else:
-            label = 'neutral'
-
-        if total >= 5:
-            confidence = 'high'
-        elif total >= 2:
-            confidence = 'medium'
-        else:
-            confidence = 'low'
+        label = 'positive' if score >= 0.6 else 'negative' if score <= 0.4 else 'neutral'
+        confidence = 'high' if total >= 5 else 'medium' if total >= 2 else 'low'
 
         return {
             'score': round(score, 2),
@@ -360,107 +318,91 @@ class TrinethraAssess:
         }
 
 
-class TrinethraModule:
-    """Analyzes supervisor feedback transcripts using NLP techniques."""
+class TrinethraCore:
+    """Handles text cleaning, batch processing, and API integration."""
+    
+    SPECIAL_CHARACTERS = r'[^a-zA-Z0-9\s.,!?\'"-]'
 
-    TOPIC_KEYWORDS = {
-        'execution': ['execution', 'task', 'completion', 'delivery', 'execute', 'deliver', 'finished', 'completed', 'work'],
-        'systems_building': ['system', 'process', 'framework', 'automation', 'build', 'tool', 'streamline', 'structure'],
-        'kpi_impact': ['metrics', 'kpi', 'numbers', 'results', 'conversion', 'leads', 'sales', 'revenue', 'impact'],
-        'change_management': ['change', 'initiative', 'innovation', 'improve', 'better', 'transform', 'new', 'different'],
-        'communication': ['communication', 'feedback', 'discuss', 'collaborate', 'team', 'coordination', 'align'],
-        'problem_solving': ['problem', 'issue', 'solution', 'debug', 'troubleshoot', 'challenge', 'identify'],
-    }
+    def __init__(self):
+        self.processor = TrinethraAssess()
 
-    def analyze_feedback(self, text):
+    def process_json_batch(self, json_data):
+        all_results = []
+        transcripts_list = json_data.get("transcripts", [])
+        
+        for entry in transcripts_list:
+            raw_text = entry.get("transcript", "")
+            if len(raw_text) < 5:
+                continue
+                
+            fellow_info = entry.get("fellow", {})
+            name = fellow_info.get("name", "Unknown")
+            
+            analysis = self.processor.assess_transcript(raw_text)
+            analysis['fellow_name'] = name
+            analysis['id'] = entry.get("id")
+            all_results.append(analysis)
+            
+        return all_results
+
+    def preprocess_text(self, text):
         if not text or not isinstance(text, str):
-            return {
-                'sentiment_score': 0.5,
-                'topics': [],
-                'summary': 'No feedback provided for analysis.'
-            }
+            return ""
+        cleaned = re.sub(self.SPECIAL_CHARACTERS, '', text)
+        standardized = cleaned.lower()
+        normalized = re.sub(r'\s+', ' ', standardized).strip()
+        return normalized
 
-        sentiment_score = self._calculate_sentiment(text)
-        topics = self._extract_topics(text)
-        summary = self._generate_summary(text, sentiment_score)
-
-        return {
-            'sentiment_score': round(sentiment_score, 2),
-            'topics': topics,
-            'summary': summary
-        }
+    def process_feedback(self, feedback):
+        if not feedback or not isinstance(feedback, str):
+            return {"error": "Invalid feedback provided"}
+        clean_text = self.preprocess_text(feedback)
+        return self.processor.assess_transcript(clean_text)
 
 
-    def _calculate_sentiment(self, text):
-        polarity = 0.0
-        if TextBlob is not None:
-            try:
-                polarity = TextBlob(text).sentiment.polarity
-            except Exception:
-                polarity = self._keyword_polarity(text)
-        else:
-            polarity = self._keyword_polarity(text)
+# Global instance
+core_instance = TrinethraCore()
 
-        sentiment_score = (polarity + 1) / 2
-        return max(0.0, min(1.0, sentiment_score))
+@app.route('/api/analyze', methods=['POST'])
+def analyze():
+    """Batch analysis endpoint"""
+    data = request.get_json(force=True, silent=True)
+    
+    if not data or 'transcripts' not in data:
+        return jsonify({"error": "Payload must contain 'transcripts' array"}), 400
 
-    def _extract_topics(self, text):
-        text_lower = text.lower()
-        topic_scores = {}
+    try:
+        results = core_instance.process_json_batch(data)
+        return jsonify(results)
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-        for topic, keywords in self.TOPIC_KEYWORDS.items():
-            count = sum(text_lower.count(keyword) for keyword in keywords)
-            if count > 0:
-                topic_scores[topic] = count
+@app.route('/api/analyze_single', methods=['POST'])
+def analyze_single():
+    """Single transcript analysis endpoint"""
+    data = request.get_json(force=True, silent=True)
+    
+    if not data or 'transcript' not in data:
+        return jsonify({"error": "Payload must contain 'transcript' field"}), 400
 
-        sorted_topics = sorted(topic_scores.items(), key=lambda x: x[1], reverse=True)
-        return [topic for topic, _ in sorted_topics[:3]]
+    try:
+        result = core_instance.process_feedback(data['transcript'])
+        return jsonify(result)
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-    def _generate_summary(self, text, sentiment_score):
-        sentences = text.split('.')
-        if not sentences:
-            return "Feedback received but unable to generate summary."
-
-        longest_sentence = max(sentences, key=len).strip()
-        if not longest_sentence:
-            longest_sentence = sentences[0].strip()
-
-        if sentiment_score >= 0.7:
-            sentiment_prefix = "Positive feedback:"
-        elif sentiment_score <= 0.3:
-            sentiment_prefix = "Critical feedback:"
-        else:
-            sentiment_prefix = "Mixed feedback:"
-
-        summary = f"{sentiment_prefix} {longest_sentence[:120]}"
-        if len(longest_sentence) > 120:
-            summary += "..."
-
-        return summary.strip()
-
-
-def main():
-    import sys
-
-    raw_input = sys.stdin.read()
-    if raw_input and raw_input.strip():
-        try:
-            payload = json.loads(raw_input)
-            transcript = payload.get('transcript', '')
-        except json.JSONDecodeError:
-            sys.stdout.write(json.dumps({'error': 'Invalid JSON input'}))
-            return
-
-        result = TrinethraAssess().assess_transcript(transcript)
-        sys.stdout.write(json.dumps(result))
-    else:
-        sample_feedback = (
-            "He maintains production tracking, coordinates quality complaints, "
-            "and helped optimize the machine layout. His execution is solid but hasn't yet shown systems thinking."
-        )
-        result = TrinethraModule().analyze_feedback(sample_feedback)
-        sys.stdout.write(json.dumps(result, indent=2))
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({"status": "healthy", "service": "Trinethra"})
 
 
 if __name__ == '__main__':
-    main()
+    print("🚀 Trinethra Module: Ready on Port 5177")
+    print("Endpoints:")
+    print("  POST /api/analyze - Batch analysis")
+    print("  POST /api/analyze_single - Single transcript")
+    print("  GET /health - Health check")
+    app.run(host='0.0.0.0', port=5177, debug=True)

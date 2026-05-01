@@ -6,7 +6,6 @@ function App() {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState('single'); // 'single' or 'batch'
 
   useEffect(() => {
     if (analysis) {
@@ -20,59 +19,10 @@ function App() {
     setAnalysis(null);
 
     try {
-      let payload, endpoint;
-      
-      if (mode === 'batch') {
-        const transcriptText = transcript.trim();
-        if (!transcriptText) {
-          throw new Error('Please enter transcripts');
-        }
-        
-        let transcriptArray;
-        
-        // Try parsing as JSON first
-        try {
-          const parsed = JSON.parse(transcriptText);
-          if (parsed.transcripts && Array.isArray(parsed.transcripts)) {
-            transcriptArray = parsed.transcripts.map(t => ({
-              id: t.id || Math.random().toString(36).substr(2, 9),
-              fellow: t.fellow || { name: t.fellow?.name || 'Unknown' },
-              transcript: t.transcript
-            }));
-          } else {
-            throw new Error('Invalid JSON format');
-          }
-        } catch (e) {
-          // Not JSON - try delimited text
-          const transcriptParts = transcriptText.split(/(?:^|\n)---+(?:$|\n)|(?:^|\n)TRANSCRIPT:+/i);
-          const validTranscripts = transcriptParts
-            .map(t => t.trim())
-            .filter(t => t.length > 0);
-          
-          if (validTranscripts.length === 0) {
-            throw new Error('Please enter at least one transcript');
-          }
-          
-          transcriptArray = validTranscripts.map((t, idx) => ({
-            transcript: t,
-            fellow: { name: `Fellow ${idx + 1}` },
-            id: Math.random().toString(36).substr(2, 9)
-          }));
-        }
-        
-        payload = { transcripts: transcriptArray };
-        endpoint = 'http://localhost:5177/api/analyze';
-        console.log(`Sending batch of ${transcriptArray.length} transcripts`);
-      } else {
-        if (!transcript.trim()) {
-          throw new Error('Please enter a transcript');
-        }
-        payload = { transcript };
-        endpoint = 'http://localhost:5177/api/analyze_single';
-        console.log('Sending single:', payload);
-      }
+      const payload = { transcript };
+      console.log('Sending:', payload);
 
-      const response = await fetch(endpoint, {
+      const response = await fetch('http://localhost:5177/api/analyze_single', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -87,7 +37,7 @@ function App() {
       }
 
       const data = await response.json();
-      setAnalysis(mode === 'batch' ? data : [data]);
+      setAnalysis(data);
       
     } catch (err) {
       console.error('Error:', err);
@@ -147,30 +97,11 @@ function App() {
       </header>
 
       <section className="input-card">
-        <div className="mode-toggle">
-          <button 
-            className={mode === 'single' ? 'active' : ''} 
-            onClick={() => setMode('single')}
-          >
-            Single Transcript
-          </button>
-          <button 
-            className={mode === 'batch' ? 'active' : ''} 
-            onClick={() => setMode('batch')}
-          >
-            Batch Processing
-          </button>
-        </div>
-
         <textarea
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
-          placeholder={mode === 'batch' 
-            ? "Paste JSON array or delimited transcripts..." 
-            : "Paste supervisor transcript here..."
-          }
+          placeholder="Paste supervisor transcript here..."
         />
-
         <button onClick={handleAnalyze} disabled={loading}>
           {loading ? 'Analyzing...' : '🔍 Generate Assessment'}
         </button>
