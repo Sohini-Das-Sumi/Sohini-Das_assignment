@@ -11,7 +11,7 @@ class TrinethraCore:
     """Handles text cleaning and normalization."""
     SPECIAL_CHARACTERS = r'[^a-zA-Z0-9\s.,!?\'"-]'
 
-    @staticmethod 
+ 
     def preprocess_text(self, text):
         if not text or not isinstance(text, str):
             return ""
@@ -390,7 +390,7 @@ class TrinethraModule:
             'summary': summary
         }
 
-    @staticmethod 
+
     def _calculate_sentiment(self, text):
         polarity = 0.0
         if TextBlob is not None:
