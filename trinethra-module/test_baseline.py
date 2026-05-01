@@ -2,13 +2,20 @@
 """Test baseline with actual transcripts from transcript.json"""
 
 import json
-import sys
-sys.path.insert(0, 'c:/Users/dasso/OneDrive/Desktop/Sohini-Das_assignment/trinethra-module/backend')
-import trinethra
+import os
+import importlib.util
+
+backend_dir = os.path.join(os.path.dirname(__file__), 'backend')
+trinethra_file = os.path.join(backend_dir, 'trinethra.py')
+
+spec = importlib.util.spec_from_file_location('trinethra', trinethra_file)
+trinethra = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(trinethra)
 
 assessor = trinethra.TrinethraAssess()
 
-with open('c:/Users/dasso/OneDrive/Desktop/Sohini-Das_assignment/trinethra-module/transcript.json') as f:
+transcript_path = os.path.join(os.path.dirname(__file__), 'transcript.json')
+with open(transcript_path, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
 print("=" * 70)

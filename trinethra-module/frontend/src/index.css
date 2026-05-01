@@ -1,84 +1,325 @@
 :root {
   color-scheme: light;
-  font-family: Inter, system-ui, sans-serif;
-  background: #f7f9fc;
-  color: #111827;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+  --primary-color: #1e40af;
+  --secondary-color: #64748b;
+  --accent-color: #0f172a;
+  --border-color: #e2e8f0;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  line-height: 1.6;
 }
 
 button {
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .app-shell {
-  max-width: 900px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 2rem 0;
 }
 
 header h1 {
-  margin-bottom: 0.25rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  letter-spacing: -0.025em;
 }
 
-.input-card,
-.results-card {
+header p {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--secondary-color);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.input-card {
   background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-  margin-top: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+}
+
+.input-card h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent-color);
 }
 
 label {
   display: block;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 0.75rem;
+  color: var(--accent-color);
+  font-size: 1rem;
 }
 
 textarea {
   width: 100%;
-  min-height: 220px;
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  padding: 14px;
+  min-height: 280px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  padding: 1rem;
   font-size: 1rem;
   resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: #f8fafc;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
 }
 
 button {
-  background: #2563eb;
+  background: var(--primary-color);
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   color: white;
-  padding: 12px 18px;
-  margin-top: 12px;
+  padding: 0.875rem 2rem;
+  margin-top: 1.5rem;
   font-weight: 600;
+  font-size: 1rem;
+  box-shadow: var(--shadow);
+  transition: all 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:disabled::after {
+  content: '';
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .error {
-  margin-top: 14px;
-  color: #b91c1c;
+  margin-top: 1rem;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error::before {
+  content: '⚠️';
+  font-size: 1rem;
+}
+
+.results-card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  margin-top: 2rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.results-card h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent-color);
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.5rem;
 }
 
 .result-section {
-  margin-top: 18px;
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
-.result-section h2 {
-  margin-bottom: 10px;
+.result-section:last-child {
+  margin-bottom: 0;
+}
+
+.result-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.result-section p {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 .result-section ul {
-  list-style: disc;
-  padding-left: 22px;
+  list-style: none;
+  padding: 0;
   margin: 0;
 }
 
 .result-section li {
-  margin-bottom: 8px;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s ease;
+}
+
+.result-section li:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.result-section li strong {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Score styling */
+.score-display {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.score-label {
+  display: inline-block;
+  background: var(--primary-color);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.score-band {
+  color: var(--secondary-color);
+  font-weight: 500;
+}
+
+/* Evidence styling */
+.evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.evidence-sentiment {
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  display: inline-block;
+  width: fit-content;
+}
+
+.evidence-sentiment.positive {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.evidence-sentiment.negative {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.evidence-sentiment.neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.evidence-dimension {
+  color: var(--secondary-color);
+  font-size: 0.875rem;
+}
+
+.evidence-quote {
+  font-style: italic;
+  color: var(--accent-color);
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: var(--secondary-color);
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 768px) {
+  .app-shell {
+    padding: 1rem;
+  }
+
+  header h1 {
+    font-size: 2rem;
+  }
+
+  .input-card,
+  .results-card {
+    padding: 1.5rem;
+  }
+
+  .result-section {
+    padding: 1rem;
+  }
 }
