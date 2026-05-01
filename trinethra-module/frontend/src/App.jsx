@@ -141,9 +141,9 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header>
-        <h1>🚀 Trinethra</h1>
-        <p>Supervisor Feedback Analyzer</p>
+<header>
+        <h1>DT Assessment System</h1>
+        <p>DT Fellow Feedback Analyzer</p>
       </header>
 
       <section className="input-card">
