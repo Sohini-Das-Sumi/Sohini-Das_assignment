@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './index.css';
 
 function App() {
@@ -7,33 +7,83 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    console.log('Analysis state changed:', analysis);
+    console.log('Analysis truthy?', !!analysis);
+    if (analysis) {
+      console.log('Analysis keys:', Object.keys(analysis));
+      console.log('Score:', analysis.score);
+    }
+  }, [analysis]);
+
   async function handleAnalyze() {
+    console.log('Starting analysis...');
+    console.log('Raw transcript input:', transcript);
+    console.log('Transcript type:', typeof transcript);
+
     if (!transcript.trim()) {
+      console.log('No transcript provided');
       setError('Please paste a transcript first.');
       return;
     }
+
+    // Check if transcript is JSON and extract text if needed
+    let transcriptText = transcript;
+    try {
+      const parsed = JSON.parse(transcript);
+      console.log('Parsed JSON:', parsed);
+      if (parsed.transcripts && Array.isArray(parsed.transcripts)) {
+        transcriptText = parsed.transcripts.map(t => t.text || t.transcript || JSON.stringify(t)).join(' ');
+        console.log('Extracted text from JSON:', transcriptText);
+      } else if (parsed.transcript) {
+        transcriptText = parsed.transcript;
+      } else if (typeof parsed === 'string') {
+        transcriptText = parsed;
+      }
+    } catch (e) {
+      console.log('Not JSON, using as plain text');
+    }
+
+    console.log('Final transcript text:', transcriptText.substring(0, 100) + '...');
     setError(null);
     setLoading(true);
     setAnalysis(null);
 
     try {
-      const response = await fetch('http://localhost:3001/analyze', {
+      console.log('Making fetch request to /api/analyze');
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript: transcriptText }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
-        const body = await response.json();
-        throw new Error(body.error || 'Analysis failed.');
+        let errorMessage = 'Analysis failed.';
+        try {
+          const body = await response.json();
+          console.log('Error response body:', body);
+          errorMessage = body.error || errorMessage;
+        } catch (e) {
+          console.log('Failed to parse error response:', e);
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
+      console.log('Analysis data received:', data);
+      console.log('Setting analysis state...');
       setAnalysis(data);
+      console.log('Analysis set successfully');
     } catch (err) {
-      setError(err.message);
+      console.error('Analysis error:', err);
+      setError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+      console.log('Loading set to false');
     }
   }
 
@@ -41,7 +91,14 @@ function App() {
     if (!items || !items.length) {
       return <li>No items found.</li>;
     }
-    return items.map((item, index) => <li key={index}>{item}</li>);
+    return items.map((item, index) => {
+      // Handle objects with detail property (like gaps)
+      if (typeof item === 'object' && item.detail) {
+        return <li key={index}>{item.detail}</li>;
+      }
+      // Handle strings
+      return <li key={index}>{item}</li>;
+    });
   };
 
   return (
@@ -58,11 +115,11 @@ function App() {
           id="transcript"
           value={transcript}
           onChange={(event) => setTranscript(event.target.value)}
-          placeholder="Paste the complete supervisor feedback transcript here for analysis..."
+          placeholder="Paste the complete supervisor feedback transcript here for analysis. Supports both plain text and JSON format with transcripts array."
           aria-describedby="transcript-help"
         />
         <div id="transcript-help" className="help-text">
-          Enter the full transcript of supervisor feedback for comprehensive analysis
+          Enter supervisor feedback as plain text or JSON format (with transcripts array). The system will automatically extract and analyze the content.
         </div>
         <button onClick={handleAnalyze} disabled={loading} aria-describedby="button-help">
           {loading ? 'Analyzing Transcript...' : 'Generate Assessment'}
@@ -74,7 +131,8 @@ function App() {
       </section>
 
       {analysis && (
-        <section className="results-card">
+        <section key={Date.now()} className="results-card">
+          {console.log('Rendering results section, analysis:', analysis)}
           <h2>Assessment Results</h2>
 
           <div className="result-section">
@@ -90,7 +148,7 @@ function App() {
           <div className="result-section">
             <h3>Evidence-Based Analysis</h3>
             <ul>
-              {analysis.evidence?.length ? (
+              {analysis.evidence && analysis.evidence.length ? (
                 analysis.evidence.map((item, index) => (
                   <li key={index} className="evidence-item">
                     <span className={`evidence-sentiment ${item.sentiment?.toLowerCase() || 'neutral'}`}>
