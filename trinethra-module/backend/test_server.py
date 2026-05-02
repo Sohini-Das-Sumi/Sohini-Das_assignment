@@ -21,5 +21,5 @@ def analyze():
     })
 
 if __name__ == '__main__':
-    print("🚀 Test server starting...")
+    print("Test server starting...")
     app.run(host='0.0.0.0', port=5177, debug=True)

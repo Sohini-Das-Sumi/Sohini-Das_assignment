@@ -400,7 +400,7 @@ def health():
 
 
 if __name__ == '__main__':
-    print("🚀 Trinethra Module: Ready on Port 5177")
+    print("Trinethra Module: Ready on Port 5177")
     print("Endpoints:")
     print("  POST /api/analyze - Batch analysis")
     print("  POST /api/analyze_single - Single transcript")
