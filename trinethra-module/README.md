@@ -1,117 +1,86 @@
 # Supervisor Feedback Analyzer (Trinethra)
 
-[![Backend](https://img.shields.io/badge/Backend-Express.js%20+%20Python-blue)](https://expressjs.com/)
+[![Backend](https://img.shields.io/badge/Backend-Python%20Flask-blue)](https://flask.palletsprojects.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%20+%20Vite-green)](https://vitejs.dev/)
-[![LLM](https://img.shields.io/badge/LLM-Ollama%20mistral-orange)](https://ollama.com/)
+[![AI](https://img.shields.io/badge/AI-Ollama%20Mistral-orange)](https://ollama.com/)
 
-Trinethra analyzes supervisor transcripts using a 1-10 performance rubric (rubric.json), extracting evidence, scores, KPIs, gaps, and follow-up questions via local LLM.
+Trinethra analyzes supervisor transcripts using a 1-10 performance rubric ([rubric.json](rubric.json)), extracting score, evidence, KPIs, gaps, biases, and follow-up questions. **Now includes transcript summarization**.
 
-## 🚀 Quickstart / Setup (Development Process Step 1)
+## 🔧 Installation Notes
 
-**Prerequisites**:
-- Node.js ≥16
-- Python 3.8+ (for trinethra.py/llm_chain.py)
-- Ollama: Download from [ollama.com](https://ollama.com/)
+### Prerequisites
+- **Python 3.8+**
+- **Node.js ≥18**
+- **Ollama**: Download from [ollama.com](https://ollama.com/)
+  ```
+  ollama serve  # Run in background
+  ollama pull mistral  # ~4GB, first time
+  ```
+  *Troubleshoot*: `ollama list` (check models), port 11434 free.
+
+### Backend (Python - Recommended Virtualenv)
 ```
-ollama pull mistral:latest
-ollama serve  # Run in background
+# Global or project root
+pip install -r requirements.txt  # flask, flask-cors, textblob, etc.
+
+# Virtualenv (best practice)
+python -m venv venv
+venv\\Scripts\\activate  # Windows
+pip install -r requirements.txt
 ```
 
-**Backend** (Terminal 1):
-```
-cd trinethra-module/backend
-npm install
-npm start  # http://localhost:3001
-```
-
-**Frontend** (Terminal 2):
+### Frontend (Node)
 ```
 cd trinethra-module/frontend
-npm install
-npm run dev  # http://localhost:5173
+npm ci  # Clean install
 ```
 
-**Python Components**: Run tests via `test_server.py` or `test_request.py` (deps: requests, ollama if separate).
+## 🚀 Quickstart
 
-Open [http://localhost:5173](http://localhost:5173), paste transcript, click \"Run Analysis\".
+**Terminal 1 - Backend**:
+```
+cd trinethra-module/backend
+python trinethra.py
+```
+*Expected*: `Trinethra Module: Ready on http://localhost:5000`
 
-## 🏗️ Architecture (Dev Steps 2-3: Build & Integrate)
+**Terminal 2 - Frontend**:
+```
+cd trinethra-module/frontend
+npm run dev
+```
+*Expected*: `Local: http://localhost:5173` (proxies /api → :5000)
 
+**Test UI**: Open http://localhost:5173, paste sample from [transcript.json](transcript.json).
+
+## 🏗️ Project Structure
 ```
 trinethra-module/
-├── backend/              # Express API (/analyze), Python LLM chain (trinethra.py)
-│   ├── index.js          # Loads rubric.json, crafts prompt, Ollama call
-│   ├── trinethra.py      # TrinethraAssess: signals, scoring logic
-│   ├── llm_chain.py      # LLM interaction
-│   └── test_*.py         # Tests & feedback (test_feedback.csv)
-├── frontend/             # React UI
-│   └── src/App.jsx       # Input, results display
-├── rubric.json           # 1-10 rubric (bands, dimensions: Execution/Systems/KPI/Change)
-├── transcript.json       # Sample inputs
-├── IMPLEMENTATION.md     # Detailed dev notes
-└── README.md             # You're here!
+├── backend/
+│   ├── trinethra.py          # Flask API + core TrinethraAssess
+│   ├── summary_chain.py      # New: Summary generation
+│   └── test_*.py             # Tests
+├── frontend/src/             # React App.jsx
+├── rubric.json               # Scoring bands
+└── requirements.txt
 ```
 
-**Flow**: Transcript → Frontend POST /analyze → Backend prompt w/ rubric → Ollama JSON → Parse (fallback regex) → Structured output (score, evidence, KPIs, gaps, questions).
+## ✅ Testing
 
-## ✅ Testing (Dev Step 4: Validate)
-
-- 4 sample tests passed (TODO.md): Scores 5-8, bias/KPI detection.
-- Run `python backend/test_server.py` or load transcript.json samples.
-- Expected: Score boundary 6vs7 (executor vs problem-finder).
-
-## 📈 Development Process Timeline
-
-1. **Setup**: Git init, Node projects, data (rubric/transcript).
-2. **Backend**: Express API, Python processing (signals/KPIs/dimensions/bias), Ollama integration, error handling.
-3. **Frontend**: React form, results sections (score/evidence/KPIs/gaps/questions).
-4. **Integration & Test**: Full flow, 4 verified samples.
-5. **Iteration**: Backups, tests; all TODOs ✅.
-
-**Commits**: Initial setup → Core logic → UI → Polish.
-
-## 🔧 Design Challenges Tackled
-
-- **Structured JSON**: Prompt + parse + regex fallback.
-- **Single Prompt MVP**: Fast, simple.
-- **Local LLM**: Ollama mistral (temp=0.2).
-
-## 🚀 Next Steps / Improvements (Future Dev)
-
-- Prompt tuning w/ samples.
-- UI: Quote highlights, side-by-side, edit evidence.
-- Backend: Retries, multi-model, logging.
-- More tests vs expected scores.
-
-See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details, [TODO.md](../TODO.md) for tasks.
-
-## ✨ Key Features
-- **AI + Rules Hybrid**: Ollama Mistral JSON + Python keyword/sentiment/bias detection (TrinethraAssess).
-- **1-10 Rubric**: Bands (Productivity/Performance), dimensions (Execution/Systems/KPI/Change).
-- **Outputs**: Score/label/justification, evidence (quote/sentiment/dim), KPIs/gaps/questions/biases/layers.
-- **Batch Mode**: JSON/delimited transcripts.
-- **Fallbacks**: Regex parsing, no-LLM mode.
-
-## 📱 Screenshots
-*(Add after running: frontend results view)*
-
+### Backend Endpoints
 ```
-Score: 7/10 Problem Identifier (Performance)
-Evidence: "He built tracker" → positive, Building Systems
-KPIs: TAT, Quality
-Gaps: Change Management
-Questions: "Floor worker response?"
+# Analysis
+curl -X POST http://localhost:5000/api/analyze_single -H "Content-Type: application/json" -d "{\"transcript\":\"Anil is excellent\"}"
+
+# New: Summary
+curl -X POST http://localhost:5000/api/generate_summary -H "Content-Type: application/json" -d "{\"transcript\":\"test transcript text\"}"
+
+# Python test
+python backend/test_server.py
 ```
 
-## 🚀 Next Steps / Improvements (Future Dev)
+### Recent Fixes
+- Robust `/api/generate_summary` with logging/fallback.
+- Frontend UX: Empty input handling, better placeholders.
 
-- Prompt tuning w/ samples.
-- UI: Quote highlights, side-by-side, edit evidence.
-- Backend: Retries, multi-model, logging.
-- More tests vs expected scores.
-
-See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details, [TODO.md](../TODO.md) for tasks.
-
-## License
-MIT
-
+**Ports**: Backend 5000 | Frontend 5173 | Ollama 11434

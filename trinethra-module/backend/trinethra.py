@@ -5,6 +5,10 @@ import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import logging
+import io
+import base64
+from docx import Document
+from docx.shared import Inches
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -365,6 +369,7 @@ class TrinethraCore:
             analysis = self.processor.assess_transcript(raw_text)
             analysis['fellow_name'] = name
             analysis['id'] = entry.get("id")
+            analysis['transcript'] = raw_text  # Add original transcript for summary
             all_results.append(analysis)
             
         return all_results
@@ -381,7 +386,9 @@ class TrinethraCore:
         if not feedback or not isinstance(feedback, str):
             return {"error": "Invalid feedback provided"}
         clean_text = self.preprocess_text(feedback)
-        return self.processor.assess_transcript(clean_text)
+        analysis = self.processor.assess_transcript(clean_text)
+        analysis['transcript'] = feedback  # Add original transcript for summary
+        return analysis
 
 
 # Global instance
@@ -417,6 +424,185 @@ def analyze_single():
         print(f"ERROR: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/save_review', methods=['POST'])
+def save_review():
+    """Save user review to CSV and JSON"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    review = data.get('review', {})
+    timestamp = data.get('timestamp', '')
+    
+    # Append to CSV
+    with open('test_feedback.csv', 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=['id', 'status', 'score', 'reviewer', 'reject_reason', 'kpis', 'gaps'])
+        if f.tell() == 0:  # Write header if empty
+            writer.writeheader()
+        writer.writerow({
+            'id': review.get('id'),
+            'status': review.get('status', 'draft'),
+            'score': review.get('edits', {}).get('score.value'),
+            'reviewer': review.get('reviewer', ''),
+            'reject_reason': review.get('rejectReason', ''),
+            'kpis': json.dumps(review.get('data', {}).get('kpis', [])),
+            'gaps': json.dumps(review.get('data', {}).get('gaps', []))
+        })
+    
+    # Append to reviews.json
+    reviews = []
+    try:
+        with open('reviews.json', 'r') as f:
+            reviews = json.load(f)
+    except FileNotFoundError:
+        pass
+    reviews.append({**review, 'timestamp': timestamp})
+    with open('reviews.json', 'w') as f:
+        json.dump(reviews, f, indent=2)
+    
+    return jsonify({'success': True, 'message': 'Review saved to CSV and JSON'})
+
+@app.route('/api/reviews', methods=['GET'])
+def get_reviews():
+    """Load saved reviews"""
+    try:
+        with open('reviews.json', 'r') as f:
+            return jsonify(json.load(f))
+    except FileNotFoundError:
+        return jsonify([])
+
+@app.route('/api/export_word', methods=['POST'])
+def export_word():
+    """Generate Word document for current analysis and reviews"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    analysis = data.get('analysis', [])
+    reviews = data.get('reviews', [])
+    reviewer = data.get('reviewerName', 'Anonymous')
+    
+    if not analysis:
+        return jsonify({'error': 'No analysis data'}), 400
+    
+    # Create DOCX
+    doc = Document()
+    doc.add_heading('Trinethra Performance Report', 0)
+    doc.add_paragraph(f'Reviewer: {reviewer}')
+    doc.add_paragraph(f'Generated: {data.get("timestamp", "Now")}')
+    doc.add_page_break()
+    
+    # Single or multiple
+    if len(analysis) == 1:
+        item = analysis[0]
+        review_item = reviews[0] if reviews else {}
+        _add_fellow_report(doc, item, review_item)
+    else:
+        for i, item in enumerate(analysis):
+            review_item = reviews[i] if i < len(reviews) else {}
+            doc.add_heading(f'Fellow {i+1}: {item.get("fellow_name", "Unnamed")}', level=1)
+            _add_fellow_report(doc, item, review_item)
+            doc.add_page_break()
+    
+    # Save to bytes
+    stream = io.BytesIO()
+    doc.save(stream)
+    stream.seek(0)
+    docx_base64 = base64.b64encode(stream.read()).decode('utf-8')
+    
+    return jsonify({'docx_base64': docx_base64})
+
+
+def _add_fellow_report(doc, analysis, review):
+    """Helper to add single fellow report"""
+    edits = review.get('edits', {})
+    
+    # Score
+    doc.add_heading('Performance Score', level=2)
+    score_val = edits.get('score.value', analysis.get('score', {}).get('value', 'N/A'))
+    score_label = edits.get('score.label', analysis.get('score', {}).get('label', 'N/A'))
+    p = doc.add_paragraph()
+    p.add_run(f'Score: {score_val}/10 (').bold = True
+    p.add_run(f'{score_label})').bold = False
+    doc.add_paragraph(edits.get('score.justification', analysis.get('score', {}).get('justification', '')))
+    
+    # KPIs
+    if analysis.get('kpis'):
+        doc.add_heading('KPIs Impacted', level=2)
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'Table Grid'
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'KPI'
+        hdr_cells[1].text = 'Status'
+        for kpi in analysis['kpis']:
+            row_cells = table.add_row().cells
+            row_cells[0].text = kpi
+            row_cells[1].text = 'Active'  # Simple
+        doc.add_paragraph('(KPIs detected from transcript analysis)')
+    
+    # Gaps
+    if analysis.get('gaps'):
+        doc.add_heading('Identified Gaps', level=2)
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'Table Grid'
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Dimension'
+        hdr_cells[1].text = 'Detail'
+        for gap in analysis['gaps']:
+            row_cells = table.add_row().cells
+            row_cells[0].text = gap.get('dimension', '')
+            row_cells[1].text = gap.get('detail', '')
+    
+    # Questions
+    if analysis.get('questions'):
+        doc.add_heading('Follow-up Questions', level=2)
+        for q in analysis['questions']:
+            doc.add_paragraph(q, style='List Bullet')
+    
+    # Evidence
+    if analysis.get('evidence'):
+        doc.add_heading('Key Evidence', level=2)
+        for ev in analysis['evidence']:
+            p = doc.add_paragraph(f'"{ev["quote"]} ({ev["sentiment"]} - {ev["dimension"]})')
+    
+    # Status from review
+    status = review.get('status', 'draft')
+    doc.add_paragraph(f'\nReview Status: {status.upper()}', style='Intense Quote')
+
+
+@app.route('/api/generate_summary', methods=['POST'])
+def generate_summary_endpoint():
+    """Generate LLM summary for transcript - with robust fallback"""
+    data = request.get_json(force=True, silent=True)
+    print(f"SUMMARY REQUEST: transcript length={len(data.get('transcript', '')) if data else 0}")
+    
+    if not data or 'transcript' not in data:
+        print("SUMMARY ERROR: Missing transcript")
+        return jsonify({"error": "Payload must contain 'transcript' field"}), 400
+    
+    transcript = (data['transcript'] or '').strip()
+    if not transcript:
+        print("SUMMARY ERROR: Empty transcript")
+        return jsonify({'summary': 'No content - summary unavailable.'}), 400
+    
+    try:
+        from summary_chain import generate_summary
+        result = generate_summary(transcript)
+        print(f"SUMMARY SUCCESS: {result[:50]}...")
+        return jsonify({'summary': result})
+    except ImportError as e:
+        print(f"SUMMARY FALLBACK (import): {e}")
+    except Exception as e:
+        print(f"SUMMARY FALLBACK (error): {str(e)}")
+    
+    # Robust fallback: first sentences or truncated
+    sentences = [s.strip() for s in transcript.split('.') if s.strip()]
+    fallback = '. '.join(sentences[:3]) + '.' if sentences else transcript[:300]
+    summary = fallback[:300] + '...' if len(fallback) > 300 else fallback
+    print(f"SUMMARY FALLBACK: {summary[:50]}...")
+    return jsonify({'summary': summary})
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
@@ -424,9 +610,12 @@ def health():
 
 
 if __name__ == '__main__':
-    print("Trinethra Module: Ready on Port 5177")
+    print("Trinethra Module: Ready on Port 5000")
     print("Endpoints:")
     print("  POST /api/analyze - Batch analysis")
     print("  POST /api/analyze_single - Single transcript")
+    print("  POST /api/save_review - Save user review")
+    print("  GET /api/reviews - Load reviews")
+    print("  POST /api/generate_summary - Generate transcript summary")
     print("  GET /health - Health check")
-    app.run(host='0.0.0.0', port=5177, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
