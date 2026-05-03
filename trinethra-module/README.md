@@ -1,40 +1,117 @@
-# Supervisor Feedback Analyzer
+# Supervisor Feedback Analyzer (Trinethra)
 
-## Setup Instructions
+[![Backend](https://img.shields.io/badge/Backend-Express.js%20+%20Python-blue)](https://expressjs.com/)
+[![Frontend](https://img.shields.io/badge/Frontend-React%20+%20Vite-green)](https://vitejs.dev/)
+[![LLM](https://img.shields.io/badge/LLM-Ollama%20mistral-orange)](https://ollama.com/)
 
-1. Ensure you have Node.js installed (version 16 or higher).
-2. Install Ollama from [ollama.com](https://ollama.com/) and pull a model:
-   ```
-   ollama pull mistral:latest
-   ```
-3. Clone or navigate to the project directory.
-4. Set up the backend:
-   ```
-   cd backend
-   npm install
-   npm start
-   ```
-5. Set up the frontend (in a new terminal):
-   ```
-   cd frontend
-   npm install
-   npm run dev
-   ```
-6. Open your browser to `http://localhost:5173` for the frontend, and ensure the backend is running at `http://localhost:3001`.
+Trinethra analyzes supervisor transcripts using a 1-10 performance rubric (rubric.json), extracting evidence, scores, KPIs, gaps, and follow-up questions via local LLM.
 
-## Architecture Overview
+## 🚀 Quickstart / Setup (Development Process Step 1)
 
-- **Frontend:** React + Vite app for user interface (input transcript, display analysis).
-- **Backend:** Express server that handles API requests and communicates with Ollama local HTTP API.
-- **Ollama:** Local LLM for processing transcripts using the `mistral:latest` model.
+**Prerequisites**:
+- Node.js ≥16
+- Python 3.8+ (for trinethra.py/llm_chain.py)
+- Ollama: Download from [ollama.com](https://ollama.com/)
+```
+ollama pull mistral:latest
+ollama serve  # Run in background
+```
 
-## Design Challenges Tackled
+**Backend** (Terminal 1):
+```
+cd trinethra-module/backend
+npm install
+npm start  # http://localhost:3001
+```
 
-1. **Structured Output Reliability:** Used JSON parsing with fallback extraction to handle inconsistent LLM responses.
-2. **One Prompt or Many:** Opted for a single comprehensive prompt for this MVP to keep the workflow fast and simple.
+**Frontend** (Terminal 2):
+```
+cd trinethra-module/frontend
+npm install
+npm run dev  # http://localhost:5173
+```
 
-## Improvements with More Time
+**Python Components**: Run tests via `test_server.py` or `test_request.py` (deps: requests, ollama if separate).
 
-- Add evidence linking to highlight quotes in the transcript.
-- Implement multiple prompts for better accuracy in gap detection.
-- Enhance UI with side-by-side view of transcript and analysis.
+Open [http://localhost:5173](http://localhost:5173), paste transcript, click \"Run Analysis\".
+
+## 🏗️ Architecture (Dev Steps 2-3: Build & Integrate)
+
+```
+trinethra-module/
+├── backend/              # Express API (/analyze), Python LLM chain (trinethra.py)
+│   ├── index.js          # Loads rubric.json, crafts prompt, Ollama call
+│   ├── trinethra.py      # TrinethraAssess: signals, scoring logic
+│   ├── llm_chain.py      # LLM interaction
+│   └── test_*.py         # Tests & feedback (test_feedback.csv)
+├── frontend/             # React UI
+│   └── src/App.jsx       # Input, results display
+├── rubric.json           # 1-10 rubric (bands, dimensions: Execution/Systems/KPI/Change)
+├── transcript.json       # Sample inputs
+├── IMPLEMENTATION.md     # Detailed dev notes
+└── README.md             # You're here!
+```
+
+**Flow**: Transcript → Frontend POST /analyze → Backend prompt w/ rubric → Ollama JSON → Parse (fallback regex) → Structured output (score, evidence, KPIs, gaps, questions).
+
+## ✅ Testing (Dev Step 4: Validate)
+
+- 4 sample tests passed (TODO.md): Scores 5-8, bias/KPI detection.
+- Run `python backend/test_server.py` or load transcript.json samples.
+- Expected: Score boundary 6vs7 (executor vs problem-finder).
+
+## 📈 Development Process Timeline
+
+1. **Setup**: Git init, Node projects, data (rubric/transcript).
+2. **Backend**: Express API, Python processing (signals/KPIs/dimensions/bias), Ollama integration, error handling.
+3. **Frontend**: React form, results sections (score/evidence/KPIs/gaps/questions).
+4. **Integration & Test**: Full flow, 4 verified samples.
+5. **Iteration**: Backups, tests; all TODOs ✅.
+
+**Commits**: Initial setup → Core logic → UI → Polish.
+
+## 🔧 Design Challenges Tackled
+
+- **Structured JSON**: Prompt + parse + regex fallback.
+- **Single Prompt MVP**: Fast, simple.
+- **Local LLM**: Ollama mistral (temp=0.2).
+
+## 🚀 Next Steps / Improvements (Future Dev)
+
+- Prompt tuning w/ samples.
+- UI: Quote highlights, side-by-side, edit evidence.
+- Backend: Retries, multi-model, logging.
+- More tests vs expected scores.
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details, [TODO.md](../TODO.md) for tasks.
+
+## ✨ Key Features
+- **AI + Rules Hybrid**: Ollama Mistral JSON + Python keyword/sentiment/bias detection (TrinethraAssess).
+- **1-10 Rubric**: Bands (Productivity/Performance), dimensions (Execution/Systems/KPI/Change).
+- **Outputs**: Score/label/justification, evidence (quote/sentiment/dim), KPIs/gaps/questions/biases/layers.
+- **Batch Mode**: JSON/delimited transcripts.
+- **Fallbacks**: Regex parsing, no-LLM mode.
+
+## 📱 Screenshots
+*(Add after running: frontend results view)*
+
+```
+Score: 7/10 Problem Identifier (Performance)
+Evidence: "He built tracker" → positive, Building Systems
+KPIs: TAT, Quality
+Gaps: Change Management
+Questions: "Floor worker response?"
+```
+
+## 🚀 Next Steps / Improvements (Future Dev)
+
+- Prompt tuning w/ samples.
+- UI: Quote highlights, side-by-side, edit evidence.
+- Backend: Retries, multi-model, logging.
+- More tests vs expected scores.
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details, [TODO.md](../TODO.md) for tasks.
+
+## License
+MIT
+

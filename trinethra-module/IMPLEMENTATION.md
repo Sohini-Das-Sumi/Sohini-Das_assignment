@@ -36,7 +36,7 @@
 
 **Terminal 1: Backend**
 ```bash
-cd backend
+cd trinethra-module/backend
 npm install  # (already done)
 npm start
 # Runs on http://localhost:3001
@@ -44,11 +44,14 @@ npm start
 
 **Terminal 2: Frontend**
 ```bash
-cd frontend
+cd trinethra-module/frontend
 npm install  # (already done)
 npm run dev
-# Runs on http://localhost:5174 (or 5173 if available)
+# Runs on http://localhost:5173
 ```
+
+**See README.md for full quickstart.**
+
 
 **Terminal 3: Ollama** (must be running before backend calls it)
 ```bash
